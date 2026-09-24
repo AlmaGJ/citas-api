@@ -10,6 +10,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import co.com.fcv.training.citas.application.SchedulingFailure;
 
 @RestControllerAdvice
 class ApiErrors {
@@ -26,6 +27,16 @@ class ApiErrors {
     @ExceptionHandler(AuthFailure.class)
     ResponseEntity<ProblemDetail> unauthorized(AuthFailure ignored) {
         return problem(HttpStatus.UNAUTHORIZED, "Credenciales o sesión inválidas");
+    }
+
+    @ExceptionHandler(SchedulingFailure.class)
+    ResponseEntity<ProblemDetail> scheduling(SchedulingFailure failure) {
+        HttpStatus status = switch (failure.kind()) {
+            case CONFLICT -> HttpStatus.CONFLICT;
+            case NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case INVALID -> HttpStatus.BAD_REQUEST;
+        };
+        return problem(status, failure.getMessage());
     }
 
     private ResponseEntity<ProblemDetail> problem(HttpStatus status, String detail) {

@@ -2,6 +2,7 @@ package co.com.fcv.training.citas.config;
 
 import co.com.fcv.training.citas.application.AuthService;
 import co.com.fcv.training.citas.application.Ports;
+import co.com.fcv.training.citas.application.SchedulingService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -10,7 +11,7 @@ import java.time.Clock;
 
 @Configuration
 class ApplicationConfig {
-    @Bean Clock clock() { return Clock.systemUTC(); }
+    @Bean Clock clock() { return Clock.system(java.time.ZoneId.of("America/Bogota")); }
 
     @Bean Ports.Passwords passwords() {
         BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
@@ -29,7 +30,11 @@ class ApplicationConfig {
     }
 
     @Bean AuthService authService(Ports.Accounts accounts, Ports.Sessions sessions, Ports.Passwords passwords,
-                                  Ports.Tokens tokens, Ports.Transactions transactions, Clock clock) {
-        return new AuthService(accounts, sessions, passwords, tokens, transactions, clock);
+                                  Ports.Tokens tokens, Ports.Transactions transactions, Clock clock, Ports.Insurance insurance) {
+        return new AuthService(accounts, sessions, passwords, tokens, transactions, clock, insurance);
+    }
+
+    @Bean SchedulingService schedulingService(Ports.SchedulingPort port, Clock clock) {
+        return new SchedulingService(port, clock);
     }
 }

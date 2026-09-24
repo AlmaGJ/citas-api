@@ -30,3 +30,17 @@ Para sitios distintos, la cookie es `HttpOnly; Secure; SameSite=None`, con `Path
 ## PREGUNTA ABIERTA
 
 Las rutas, filtros, paginación y formatos de fecha/hora de las demás HU siguen sin contrato aprobado.
+
+## DECISIÓN — 2026-09-24 · afiliación inicial opcional
+
+La extensión compatible de `POST /api/v1/auth/register` acepta `insurancePlanId` opcional. Si se omite, el registro conserva el comportamiento previo. Si se informa, debe identificar un plan y una EPS activos; la API crea una afiliación por FK dentro de la misma transacción. Un identificador inexistente o inactivo responde `400` en Problem Details. No se aceptan ni almacenan nombres de EPS o plan en `users`.
+
+`GET /api/v1/catalogs/active-plans` es público para permitir el registro y devuelve solamente `id`, `name`, `epsName` y `regime` de planes y EPS activos. El cliente no conserva el catálogo como fuente de verdad.
+
+## DECISIÓN — 2026-09-24 · Core de agenda S3
+
+Los catálogos fijos se exponen mediante `GET /api/v1/catalogs/locations` y `GET /api/v1/catalogs/specialties`. Una especialidad devuelve `durationMinutes`, `general` y `requiresAdminApproval`; las sedes devuelven solo identificador, código y nombre. La disponibilidad de un USER se consulta con `GET /api/v1/availability?specialtyId=&locationId=&professionalId?=&date=YYYY-MM-DD` y devuelve franjas `{ professionalId, locationId, startAt, endAt }` que ya cumplen la duración de la especialidad (30 o 60 min).
+
+`POST /api/v1/appointments` requiere rol `USER` y `{ professionalId, locationId, specialtyId, startAt, reason? }`. La API deriva el tipo desde la especialidad, bloquea los slots atómicos dentro de la transacción y devuelve `201` con la cita. Medicina General queda `APPROVED`; una especialidad queda `REQUESTED`. Una franja que dejó de estar libre devuelve `409`; selección, fecha o límites de slot inválidos devuelven `400`.
+
+Un `PROFESSIONAL` crea su disponibilidad con `POST /api/v1/professional/availability-blocks` y `{ locationId, date, start, end }`; solo se permiten futuros, límites cada 30 minutos, sedes asignadas y bloques no solapados. `ADMIN` decide una especializada pendiente usando `POST /api/v1/admin/appointments/{id}/decision` con `{ decision: APPROVE|REJECT, reason? }`; `REJECT` exige motivo y libera slots, y cada transición crea historial. Las rutas protegidas retornan `401` sin JWT y `403` cuando el rol no corresponde.
