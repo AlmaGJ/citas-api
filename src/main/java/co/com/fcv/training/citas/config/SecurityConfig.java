@@ -46,7 +46,7 @@ class SecurityConfig {
                         // without a bearer token.  The request guard still protects the
                         // sensitive login/refresh/logout flows against malformed requests.
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/catalogs/active-plans").permitAll()
+                        .requestMatchers("/api/v1/catalogs/active-plans").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated())
