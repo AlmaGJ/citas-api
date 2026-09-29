@@ -1,17 +1,17 @@
-CREATE TABLE insurance_regimes (
+CREATE TABLE IF NOT EXISTS insurance_regimes (
     id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     code VARCHAR(30) NOT NULL UNIQUE,
     name VARCHAR(80) NOT NULL
 ) ENGINE=InnoDB;
 
-CREATE TABLE eps (
+CREATE TABLE IF NOT EXISTS eps (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     code VARCHAR(30) NOT NULL UNIQUE,
     name VARCHAR(150) NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE
 ) ENGINE=InnoDB;
 
-CREATE TABLE eps_plans (
+CREATE TABLE IF NOT EXISTS eps_plans (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     eps_id BIGINT UNSIGNED NOT NULL,
     regime_id SMALLINT UNSIGNED NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE eps_plans (
     INDEX ix_eps_plans_active (active, eps_id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE user_insurance_affiliations (
+CREATE TABLE IF NOT EXISTS user_insurance_affiliations (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNSIGNED NOT NULL,
     plan_id BIGINT UNSIGNED NOT NULL,
@@ -37,13 +37,16 @@ CREATE TABLE user_insurance_affiliations (
 
 INSERT INTO insurance_regimes (id, code, name) VALUES
  (1, 'CONTRIBUTIVO', 'Contributivo'), (2, 'SUBSIDIADO', 'Subsidiado'),
- (3, 'ESPECIAL', 'Especial'), (4, 'EXCEPCION', 'Excepción'), (5, 'PARTICULAR', 'Particular');
+ (3, 'ESPECIAL', 'Especial'), (4, 'EXCEPCION', 'Excepción'), (5, 'PARTICULAR', 'Particular')
+ ON DUPLICATE KEY UPDATE name=VALUES(name);
 INSERT INTO eps (id, code, name, active) VALUES
  (1, 'EPS_DEMO_A', 'EPS Demo Salud', TRUE), (2, 'EPS_DEMO_B', 'EPS Demo Familiar', TRUE),
- (3, 'PARTICULAR_DEMO', 'Atención Particular Demo', TRUE);
+ (3, 'PARTICULAR_DEMO', 'Atención Particular Demo', TRUE)
+ ON DUPLICATE KEY UPDATE name=VALUES(name), active=VALUES(active);
 INSERT INTO eps_plans (id, eps_id, regime_id, code, name, active) VALUES
  (1, 1, 1, 'A-CONTRIB', 'Plan Contributivo Demo', TRUE),
  (2, 1, 2, 'A-SUBS', 'Plan Subsidiado Demo', TRUE),
  (3, 2, 1, 'B-CONTRIB', 'Plan Contributivo Familiar Demo', TRUE),
  (4, 2, 3, 'B-ESPECIAL', 'Plan Especial Demo', TRUE),
- (5, 3, 5, 'PARTICULAR', 'Particular / pago directo', TRUE);
+ (5, 3, 5, 'PARTICULAR', 'Particular / pago directo', TRUE)
+ ON DUPLICATE KEY UPDATE name=VALUES(name), active=VALUES(active);

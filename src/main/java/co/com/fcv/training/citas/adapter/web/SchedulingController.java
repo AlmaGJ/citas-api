@@ -17,7 +17,8 @@ import java.util.List;
 @RequestMapping("/api/v1")
 class SchedulingController {
  private final SchedulingService scheduling;
- SchedulingController(SchedulingService s){scheduling=s;}
+ private final AppointmentEventPublisher events;
+ SchedulingController(SchedulingService s, AppointmentEventPublisher events){scheduling=s;this.events=events;}
 
  record CatalogLocation(long id,String code,String name){}
  record CatalogSpecialty(long id,String code,String name,int durationMinutes,boolean general,boolean requiresAdminApproval){}
@@ -35,7 +36,7 @@ class SchedulingController {
  @GetMapping("/professionals") @PreAuthorize("hasRole('USER')")
  List<ProfessionalResponse> professionals(@RequestParam long specialtyId,@RequestParam long locationId){return scheduling.professionals(specialtyId,locationId).stream().map(x->new ProfessionalResponse(x.id(),x.code(),x.name())).toList();}
  @PostMapping("/appointments") @PreAuthorize("hasRole('USER')") ResponseEntity<AppointmentResponse> reserve(@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody ReserveRequest r){Scheduling.Appointment a=scheduling.reserve(user(jwt),new SchedulingService.Reservation(r.professionalId(),r.locationId(),r.specialtyId(),r.startAt(),r.reason()));return ResponseEntity.status(HttpStatus.CREATED).body(response(a));}
- @PostMapping("/admin/appointments/{id}/decision") @PreAuthorize("hasRole('ADMIN')") ResponseEntity<Void> decision(@AuthenticationPrincipal Jwt jwt,@PathVariable long id,@Valid @RequestBody DecisionRequest r){scheduling.decide(user(jwt),id,new SchedulingService.Decision(r.decision(),r.reason()));return ResponseEntity.noContent().build();}
+ @PostMapping("/admin/appointments/{id}/decision") @PreAuthorize("hasRole('ADMIN')") ResponseEntity<Void> decision(@AuthenticationPrincipal Jwt jwt,@PathVariable long id,@Valid @RequestBody DecisionRequest r){scheduling.decide(user(jwt),id,new SchedulingService.Decision(r.decision(),r.reason()));events.publish(id,"APPROVE".equals(r.decision())?"APPROVED":"REJECTED","ADMIN",user(jwt));return ResponseEntity.noContent().build();}
  @PostMapping("/professional/availability-blocks") @PreAuthorize("hasRole('PROFESSIONAL')") ResponseEntity<Void> createBlock(@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody BlockRequest r){scheduling.createBlock(user(jwt),new SchedulingService.Block(r.locationId(),r.date(),r.start(),r.end()));return ResponseEntity.status(HttpStatus.CREATED).build();}
  private long user(Jwt jwt){return Long.parseLong(jwt.getSubject());}
  private AppointmentResponse response(Scheduling.Appointment a){return new AppointmentResponse(a.id(),a.status(),a.professionalId(),a.locationId(),a.specialtyId(),a.startAt(),a.endAt(),a.reason());}
