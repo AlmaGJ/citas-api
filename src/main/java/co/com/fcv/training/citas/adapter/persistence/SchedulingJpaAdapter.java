@@ -24,7 +24,7 @@ class SchedulingJpaAdapter implements Ports.SchedulingPort {
  public List<Scheduling.Slot> available(long specialtyId,long locationId,Long professionalId,LocalDate date,int minutes){
   List<ProfessionalEntity> candidates=professionalId==null?professionals.availableFor(specialtyId,locationId):professionals.findById(professionalId).filter(p->canAttend(p.id,locationId,specialtyId)).stream().toList();
   LocalDateTime from=date.atStartOfDay(), to=from.plusDays(1); int required=minutes/30; List<Scheduling.Slot> result=new ArrayList<>();
-  for(ProfessionalEntity p:candidates){List<ProfessionalSlotEntity> free=slots.free(p.id,locationId,from,to); for(int i=0;i+required<=free.size();i++){boolean consecutive=true; for(int j=1;j<required;j++) if(!free.get(i+j).startAt.equals(free.get(i).startAt.plusMinutes(30L*j))) consecutive=false; if(consecutive) result.add(new Scheduling.Slot(p.id,locationId,free.get(i).startAt,free.get(i).startAt.plusMinutes(minutes)));}}
+  for(ProfessionalEntity p:candidates){List<ProfessionalSlotEntity> free=slots.free(p.id,locationId,from,to); for(int i=0;i+required<=free.size();i++){boolean consecutive=true; for(int j=1;j<required;j++) if(!free.get(i+j).startAt.equals(free.get(i).startAt.plusMinutes(30L*j))) consecutive=false; if(consecutive) result.add(new Scheduling.Slot(p.id,p.code,locationId,free.get(i).startAt,free.get(i).startAt.plusMinutes(minutes)));}}
   return result;
  }
  @Transactional
