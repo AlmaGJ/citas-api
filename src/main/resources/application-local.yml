@@ -1,0 +1,6 @@
+app:
+  password-reset:
+    local-enabled: true
+  cookie:
+    secure: ${REFRESH_COOKIE_SECURE:false}
+    same-site: ${REFRESH_COOKIE_SAME_SITE:Lax}
