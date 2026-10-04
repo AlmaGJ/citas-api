@@ -1,0 +1,459 @@
+{
+  "name": "Alejandro - WF-001 Recordatorio de citas próximas",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "b3481c57-a60b-404f-82d0-18b3812711f3",
+      "name": "Cada hora",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-api",
+              "name": "apiBaseUrl",
+              "type": "string",
+              "value": "<<CITAS_API_BASE_URL>>"
+            },
+            {
+              "id": "cfg-window",
+              "name": "windowHours",
+              "type": "number",
+              "value": 24
+            },
+            {
+              "id": "cfg-recipient",
+              "name": "labRecipient",
+              "type": "string",
+              "value": "<<LAB_RECIPIENT_EMAIL>>"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8f6d440d-5690-4907-a212-88061786de82",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.apiBaseUrl }}/api/v1/auth/login",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Requested-With",
+              "value": "XMLHttpRequest"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "32c14ab7-75fe-4cca-a6a0-600b7efa51db",
+      "name": "Login API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        208
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Alejandro - citas-api login"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.apiBaseUrl }}/api/v1/admin/appointments/upcoming",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "from",
+              "value": "={{ DateTime.now().setZone('America/Bogota').toISODate() }}"
+            },
+            {
+              "name": "to",
+              "value": "={{ DateTime.now().setZone('America/Bogota').plus({ hours: $('Config').first().json.windowHours }).toISODate() }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Login API').first().json.accessToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "5f90521e-8c34-4304-bbcc-d26153b2dff5",
+      "name": "Consultar próximas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        208
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "errorMessage": "citas-api no disponible tras reintentos; no se enviaron recordatorios"
+      },
+      "id": "8400e7ef-5ef1-4668-a77a-02af1bbf6bd8",
+      "name": "API no disponible",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        672,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sent = new Set($('Leer enviados').all().map(i => i.json.dedupeKey).filter(Boolean));\nconst now = Date.now();\nconst windowMs = $('Config').first().json.windowHours * 3600000;\nconst out = [];\nfor (const item of $('Consultar próximas').all()) {\n  const j = item.json;\n  if (j.status !== 'APPROVED') continue;\n  const start = Date.parse(j.scheduledStartAt + '-05:00');\n  if (!(start >= now && start <= now + windowMs)) continue;\n  const key = j.id + '|' + j.scheduledStartAt;\n  if (sent.has(key)) continue;\n  out.push({ json: { ...j, dedupeKey: key } });\n}\nreturn out;"
+      },
+      "id": "61e77d63-abe4-40fb-9ee2-912a734f9f64",
+      "name": "Filtrar y deduplicar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "mail-to",
+              "name": "to",
+              "type": "string",
+              "value": "={{ $('Config').first().json.labRecipient }}"
+            },
+            {
+              "id": "mail-subject",
+              "name": "subject",
+              "type": "string",
+              "value": "=Recordatorio: cita #{{ $json.id }} el {{ DateTime.fromISO($json.scheduledStartAt, { zone: 'America/Bogota' }).toFormat('dd/MM/yyyy HH:mm') }}"
+            },
+            {
+              "id": "mail-body",
+              "name": "message",
+              "type": "string",
+              "value": "=Te recordamos tu cita aprobada.\n\nEspecialidad: {{ $json.specialty }}\nProfesional: {{ $json.professional }}\nSede: {{ $json.location }}\nFecha y hora (Bogotá): {{ DateTime.fromISO($json.scheduledStartAt, { zone: 'America/Bogota' }).toFormat('dd/MM/yyyy HH:mm') }} - {{ DateTime.fromISO($json.scheduledEndAt, { zone: 'America/Bogota' }).toFormat('HH:mm') }}\n\nMensaje automático de laboratorio con datos sintéticos."
+            },
+            {
+              "id": "mail-key",
+              "name": "dedupeKey",
+              "type": "string",
+              "value": "={{ $json.dedupeKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7c8a49b2-d1c5-4777-ba98-cc05ea02d6b1",
+      "name": "Construir correo",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1104,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.message }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f58ce3f6-2abf-4643-9181-07637c363121",
+      "name": "Gmail recordatorio",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        208
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Alejandro - Gmail"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const enviados = $input.all().length;\nconst fallidos = $('Gmail recordatorio').all().filter(i => i.json.error).length;\nreturn [{ json: { workflow: 'WF-001', enviados, fallidos, ejecutadoEn: new Date().toISOString() } }];"
+      },
+      "id": "27850bcc-2311-43b5-ac06-17f584c97a0b",
+      "name": "Registrar resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "KmDvCHbst3rG9Rd3"
+        },
+        "returnAll": true
+      },
+      "id": "b0da90cb-973c-47e4-8720-cfc9ef1311ff",
+      "name": "Leer enviados",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        48
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "KmDvCHbst3rG9Rd3"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "dedupeKey": "={{ $('Construir correo').item.json.dedupeKey }}",
+            "sentAt": "={{ new Date().toISOString() }}"
+          },
+          "schema": [
+            {
+              "id": "dedupeKey",
+              "displayName": "dedupeKey",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sentAt",
+              "displayName": "sentAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fc9fb10d-0877-4837-abb3-7f722a0fc672",
+      "name": "Registrar envío",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1552,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "Gmail falló tras reintentos; el recordatorio no se registró y se reintentará en la siguiente ejecución"
+      },
+      "id": "2fc99b5e-32f5-40d1-888b-20c5a622fbec",
+      "name": "Gmail falló",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1552,
+        384
+      ]
+    }
+  ],
+  "connections": {
+    "Cada hora": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Login API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login API": {
+      "main": [
+        [
+          {
+            "node": "Consultar próximas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "API no disponible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar próximas": {
+      "main": [
+        [
+          {
+            "node": "Leer enviados",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "API no disponible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar y deduplicar": {
+      "main": [
+        [
+          {
+            "node": "Construir correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir correo": {
+      "main": [
+        [
+          {
+            "node": "Gmail recordatorio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer enviados": {
+      "main": [
+        [
+          {
+            "node": "Filtrar y deduplicar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail recordatorio": {
+      "main": [
+        [
+          {
+            "node": "Registrar envío",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail falló",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar envío": {
+      "main": [
+        [
+          {
+            "node": "Registrar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true,
+    "timezone": "America/Bogota",
+    "saveManualExecutions": true
+  },
+  "nodeGroups": []
+}

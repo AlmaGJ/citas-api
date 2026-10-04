@@ -2,7 +2,7 @@
 id: HU-034
 tipo: historia-de-usuario
 titulo: "Automatizar recordatorios"
-estado: Pendiente de aprobación
+estado: Implementada
 epica: "[[EP-008-cliente-web-y-automatizaciones-posteriores]]"
 esfuerzo: Alto
 sprint_sugerido: "Incremento 7"
@@ -46,10 +46,11 @@ Automatización prevista para S5/S6; usa instancia central del trainer y credenc
 ## Evidencia de validación
 | Elemento | Resultado | Evidencia | Observación |
 |---|---|---|---|
-| CA-01 | Pendiente | — | Depende del trainer. |
-| CA-02 | Pendiente | — | — |
-| CA-03 / DoD | Pendiente | — | — |
+| CA-01 | Cumplido | `evidence/S5-S6-n8n-2026-10-04.md` (ejecuciones 359, 360, 373) | Envío real al buzón de laboratorio y deduplicación. |
+| CA-02 | Cumplido | `evidence/S5-S6-n8n-2026-10-04.md` | Solo GET y login; sin escrituras de citas. |
+| CA-03 / DoD | Cumplido | `automations/n8n/WF-001-appointment-reminders.json` | JSON saneado; credenciales solo por nombre. Workflow inactivo. |
 ## Historial de validación
 - 2026-09-17 — HU creada en estado `Pendiente de aprobación`.
+- 2026-10-04 — Implementada. Workflow WF-001 validado con API real y dejado inactivo; activación pendiente de URL pública estable.
 ## Notas y decisiones
 - No se presupone cuándo se considera “próxima”; requiere configuración aprobada.

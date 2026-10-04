@@ -70,3 +70,12 @@ Nuevos contratos ADMIN (`hasRole('ADMIN')`), sin migraciones nuevas (todas las c
 ## DECISIÓN — 2026-09-29 · Bandeja administrativa con filtros (HU-031)
 
 `GET /api/v1/admin/inbox` (rol `ADMIN`) se amplió de forma compatible: acepta `locationId`, `professionalId`, `specialtyId` y `date` (todos opcionales) y cada fila ahora incluye `type: "APPOINTMENT"|"RESCHEDULE"`, `professionalId`, `locationId`, `specialtyId`, `specialty`, `professional`, `location` y `reason` (antes solo `id`, `status`, `scheduledStartAt`, `scheduledEndAt`, insuficiente para identificar o filtrar el pendiente). `type=APPOINTMENT` se decide con `POST /api/v1/admin/appointments/{id}/decision`; `type=RESCHEDULE` con `POST /api/v1/admin/reschedule-requests/{id}/decision` (ambos contratos sin cambios). Sin migración de esquema nueva.
+
+## DECISIÓN — 2026-10-04 · Webhook de eventos de cita hacia n8n (saliente)
+
+Contrato real del emisor `AppointmentEventPublisher`, activo solo si `N8N_WEBHOOK_ENABLED=true` con `N8N_WEBHOOK_URL` y `N8N_WEBHOOK_BEARER_TOKEN` (variables de entorno, nunca en código). Cabecera `Authorization: Bearer <token>`. Entrega post-commit, best-effort, sin reintentos; un fallo se registra como advertencia y no cambia la respuesta REST.
+
+- `AppointmentStatusChanged`: `schemaVersion="1"`, `eventId` (UUID), `eventType`, `appointmentId`, `status` (`APPROVED`|`REJECTED` con `source=ADMIN`; `CANCELLED` con `source=USER`), `actorUserId`, `occurredAt` (ISO UTC).
+- `AppointmentRescheduleDecided`: lo anterior más `rescheduleRequestId`; `source=ADMIN`; `status` `APPROVED`|`REJECTED`. Se emite desde `POST /api/v1/admin/reschedule-requests/{id}/decision` tras el commit.
+
+Minimiza datos: sin nombres, motivos ni correos. El plan original de `N8N_STATUS_*` y `appointment.status.changed` quedó superado por este contrato.

@@ -1,0 +1,499 @@
+{
+  "name": "Alejandro - WF-002 Notificación por cambio de estado",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "citas-status-changed",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "db2241c8-6a7f-4448-836d-af51b1bb2097",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        208
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alejandro - WF-002 webhook auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-recipient",
+              "name": "labRecipient",
+              "type": "string",
+              "value": "<<LAB_RECIPIENT_EMAIL>>"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f9fbe3a6-0fa0-4c50-9956-3291ff0cd5b0",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $('Webhook').first().json.body || {};\nconst UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst allowed = { ADMIN: ['APPROVED', 'REJECTED'], USER: ['CANCELLED'] };\nconst types = ['AppointmentStatusChanged', 'AppointmentRescheduleDecided'];\nlet error = null;\nif (b.schemaVersion !== '1') error = 'schemaVersion';\nelse if (!types.includes(b.eventType)) error = 'eventType';\nelse if (typeof b.eventId !== 'string' || !UUID.test(b.eventId)) error = 'eventId';\nelse if (!Number.isInteger(b.appointmentId) || b.appointmentId <= 0) error = 'appointmentId';\nelse if (b.eventType === 'AppointmentRescheduleDecided' && (!Number.isInteger(b.rescheduleRequestId) || b.rescheduleRequestId <= 0)) error = 'rescheduleRequestId';\nelse if (b.eventType === 'AppointmentRescheduleDecided' && b.source !== 'ADMIN') error = 'source';\nelse if (!allowed[b.source] || !allowed[b.source].includes(b.status)) error = 'status/source';\nelse if (Number.isNaN(Date.parse(b.occurredAt))) error = 'occurredAt';\nreturn [{ json: { valid: !error, error, eventType: b.eventType ?? null, eventId: b.eventId ?? null, appointmentId: b.appointmentId ?? null, rescheduleRequestId: b.rescheduleRequestId ?? null, status: b.status ?? null, source: b.source ?? null, occurredAt: b.occurredAt ?? null } }];"
+      },
+      "id": "c18bd1fc-29ce-48d0-ba06-4cdbf9a79e73",
+      "name": "Validar payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "valid-check",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "24527412-b8ab-4e43-91d4-2cd16d644e84",
+      "name": "¿Válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { accepted: true, eventId: $json.eventId } }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "f9187d66-9147-442c-a727-d63a61dbbeec",
+      "name": "Respuesta 202",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        880,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { accepted: false, error: $json.error } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "3fc98b41-03c0-4614-accc-3093dade4763",
+      "name": "Respuesta 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        880,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "BN9LkF9HpCB1AVVq"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "eventId",
+              "keyValue": "={{ $json.eventId }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "fb7ddac5-e170-4a20-95a0-66639f02fa01",
+      "name": "Buscar evento",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1104,
+        208
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const v = $('Validar payload').first().json;\nconst prev = $input.all().filter(i => i.json && i.json.eventId);\nreturn [{ json: { ...v, duplicate: prev.length > 0 } }];"
+      },
+      "id": "649102d4-6175-47fe-92b0-937b354aa713",
+      "name": "Chequear duplicado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dup-check",
+              "leftValue": "={{ $json.duplicate }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "067fae61-b1a4-4f82-8dcf-1814992d902b",
+      "name": "¿Es duplicado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1552,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { workflow: 'WF-002', resultado: 'duplicado', eventId: $input.first().json.eventId, correoEnviado: false } }];"
+      },
+      "id": "33ac7f26-6565-43d2-b43d-a161ef12b9f8",
+      "name": "Registrar duplicado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const v = $input.first().json;\nconst id = v.appointmentId;\nconst when = new Date(v.occurredAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' });\nlet notificationType, subject, body;\nif (v.eventType === 'AppointmentRescheduleDecided' && v.status === 'APPROVED') { notificationType = 'RESCHEDULE_APPROVED'; subject = `Reprogramación de la cita #${id} aprobada`; body = `La solicitud de reprogramación de la cita #${id} fue aprobada. La cita quedó con el nuevo horario.`; }\nelse if (v.eventType === 'AppointmentRescheduleDecided') { notificationType = 'RESCHEDULE_REJECTED'; subject = `Solicitud de reprogramación de la cita #${id} rechazada`; body = `La solicitud de reprogramación de la cita #${id} fue rechazada. La cita conserva su horario original.`; }\nelse if (v.status === 'CANCELLED') { notificationType = 'CANCELLATION'; subject = `Cita #${id} cancelada`; body = `La cita #${id} fue cancelada por el paciente.`; }\nelse if (v.status === 'REJECTED') { notificationType = 'SPECIALIZED_REJECTED'; subject = `Solicitud de cita #${id} rechazada`; body = `La solicitud de cita #${id} fue rechazada por el equipo administrativo.`; }\nelse { notificationType = 'SPECIALIZED_APPROVED'; subject = `Cita #${id} aprobada`; body = `La solicitud de cita #${id} fue aprobada.`; }\nconst message = `${body}\\n\\nFecha del evento (Bogotá): ${when}\\n\\nMensaje automático de laboratorio con datos sintéticos.`;\nreturn [{ json: { ...v, notificationType, to: $('Config').first().json.labRecipient, subject, message } }];"
+      },
+      "id": "64fe9234-7b6a-4482-a4f8-7684c692bfbb",
+      "name": "Construir correo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.message }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "6194b17b-7aba-4ac2-925d-abe079ad5622",
+      "name": "Gmail notificación",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1984,
+        320
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Alejandro - Gmail"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "BN9LkF9HpCB1AVVq"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "eventId": "={{ $('Construir correo').item.json.eventId }}",
+            "appointmentId": "={{ String($('Construir correo').item.json.appointmentId) }}",
+            "notificationType": "={{ $('Construir correo').item.json.notificationType }}",
+            "processedAt": "={{ new Date().toISOString() }}"
+          },
+          "schema": [
+            {
+              "id": "eventId",
+              "displayName": "eventId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "appointmentId",
+              "displayName": "appointmentId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notificationType",
+              "displayName": "notificationType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processedAt",
+              "displayName": "processedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1b6aae11-24ee-4793-851b-e785ff284e39",
+      "name": "Registrar evento",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2208,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { workflow: 'WF-002', resultado: 'enviado', eventId: $input.first().json.eventId } }];"
+      },
+      "id": "94f8dcb4-3280-4c03-b627-b4cc89cd5a3c",
+      "name": "Registrar resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2432,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "Gmail falló tras reintentos; el evento no se registró como procesado y podrá reintentarse"
+      },
+      "id": "74d9bdaf-7c23-454e-b763-7f43804c79aa",
+      "name": "Gmail falló",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        2208,
+        448
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Validar payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar payload": {
+      "main": [
+        [
+          {
+            "node": "¿Válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Válido?": {
+      "main": [
+        [
+          {
+            "node": "Respuesta 202",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar evento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar evento": {
+      "main": [
+        [
+          {
+            "node": "Chequear duplicado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chequear duplicado": {
+      "main": [
+        [
+          {
+            "node": "¿Es duplicado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es duplicado?": {
+      "main": [
+        [
+          {
+            "node": "Registrar duplicado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Construir correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir correo": {
+      "main": [
+        [
+          {
+            "node": "Gmail notificación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail notificación": {
+      "main": [
+        [
+          {
+            "node": "Registrar evento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail falló",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar evento": {
+      "main": [
+        [
+          {
+            "node": "Registrar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true,
+    "timezone": "America/Bogota",
+    "saveManualExecutions": true
+  },
+  "nodeGroups": []
+}

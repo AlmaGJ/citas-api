@@ -2,7 +2,7 @@
 id: HU-036
 tipo: historia-de-usuario
 titulo: "Generar resumen operativo diario"
-estado: Pendiente de aprobación
+estado: Implementada
 epica: "[[EP-008-cliente-web-y-automatizaciones-posteriores]]"
 esfuerzo: Alto
 sprint_sugerido: "Incremento 7"
@@ -46,10 +46,11 @@ Es el caso adicional de automatización S5/S6 descrito por el PRD.
 ## Evidencia de validación
 | Elemento | Resultado | Evidencia | Observación |
 |---|---|---|---|
-| CA-01 | Pendiente | — | Depende de definición operativa. |
-| CA-02 | Pendiente | — | — |
-| CA-03 / DoD | Pendiente | — | — |
+| CA-01 | Cumplido | `evidence/S5-S6-n8n-2026-10-04.md` (ejecuciones 369, 374) | Agregado por sede y especialidad con la semilla del 5/10. |
+| CA-02 | Cumplido | `evidence/S5-S6-n8n-2026-10-04.md` | Solo GET y login. |
+| CA-03 / DoD | Cumplido | `automations/n8n/WF-003-daily-operational-summary.json` | JSON saneado. Workflow inactivo. |
 ## Historial de validación
 - 2026-09-17 — HU creada en estado `Pendiente de aprobación`.
+- 2026-10-04 — Implementada. COMPLETED, NO_SHOW y CANCELLED se reportan como no disponibles por contrato (brecha B4). Workflow dejado inactivo.
 ## Notas y decisiones
 - Pregunta abierta: destinatario/canal del resumen, fuera del PRD.

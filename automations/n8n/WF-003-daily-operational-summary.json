@@ -1,0 +1,334 @@
+{
+  "name": "Alejandro - WF-003 Resumen operativo diario",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "id": "8c4e3d5a-a2f5-4f9f-94fd-c6fbea63c177",
+      "name": "Cada día 06:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-api",
+              "name": "apiBaseUrl",
+              "type": "string",
+              "value": "<<CITAS_API_BASE_URL>>"
+            },
+            {
+              "id": "cfg-recipient",
+              "name": "labRecipient",
+              "type": "string",
+              "value": "<<LAB_RECIPIENT_EMAIL>>"
+            },
+            {
+              "id": "cfg-fecha",
+              "name": "fecha",
+              "type": "string",
+              "value": "={{ DateTime.now().setZone('America/Bogota').toISODate() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "84fbd3df-99b0-4f32-8721-de82a11c7051",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.apiBaseUrl }}/api/v1/auth/login",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Requested-With",
+              "value": "XMLHttpRequest"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "4615a36a-a3b4-48bf-b1d7-33dacd2f6f2e",
+      "name": "Login API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        208
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Alejandro - citas-api login"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.apiBaseUrl }}/api/v1/admin/appointments/upcoming",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "from",
+              "value": "={{ $('Config').first().json.fecha }}"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Config').first().json.fecha }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Login API').first().json.accessToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "2c9e5fc3-4ca8-4aa9-9525-46c3bcb51419",
+      "name": "Citas aprobadas del día",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        208
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.apiBaseUrl }}/api/v1/admin/inbox",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Login API').first().json.accessToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "44497694-e0a9-4e53-806f-df879fc717ee",
+      "name": "Bandeja ADMIN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        208
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst fecha = cfg.fecha;\nconst citasItems = $('Citas aprobadas del día').all().map(i => i.json);\nconst bandejaItems = $('Bandeja ADMIN').all().map(i => i.json);\nconst incidencias = [];\nfor (const [name, items] of [['Login API', $('Login API').all().map(i => i.json)], ['Citas aprobadas del día', citasItems], ['Bandeja ADMIN', bandejaItems]]) {\n  const err = items.find(j => j.error);\n  if (err) incidencias.push(`${name}: ${String(err.error.message || 'error').slice(0, 160)}`);\n}\nconst citas = citasItems.filter(c => c.id && c.status === 'APPROVED' && String(c.scheduledStartAt).startsWith(fecha));\nconst porSede = {};\nconst porEsp = {};\nfor (const c of citas) { porSede[c.location] = (porSede[c.location] || 0) + 1; porEsp[c.specialty] = (porEsp[c.specialty] || 0) + 1; }\nconst pendCitas = bandejaItems.filter(r => r.type === 'APPOINTMENT' && r.status === 'REQUESTED').length;\nconst pendRe = bandejaItems.filter(r => r.type === 'RESCHEDULE' && r.status === 'PENDING').length;\nconst rows = obj => Object.entries(obj).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') || '<tr><td colspan=\"2\">Sin citas aprobadas</td></tr>';\nconst inc = incidencias.length ? '<ul>' + incidencias.map(x => `<li>${x}</li>`).join('') + '</ul>' : '<p>Ninguna</p>';\nconst html = `<h2>Resumen operativo FCV Citas — ${fecha}</h2>\n<h3>Citas aprobadas por sede (total ${citas.length})</h3><table border=\"1\" cellpadding=\"4\">${rows(porSede)}</table>\n<h3>Distribución por especialidad</h3><table border=\"1\" cellpadding=\"4\">${rows(porEsp)}</table>\n<h3>Pendientes de decisión</h3><p>Solicitudes especializadas (REQUESTED): ${pendCitas}<br>Reprogramaciones (PENDING): ${pendRe}</p>\n<h3>No disponible por contrato</h3><p>COMPLETED, NO_SHOW y CANCELLED del día: la API no expone un agregado diario por estado.</p>\n<h3>Incidencias</h3>${inc}\n<p><em>Mensaje automático de laboratorio con datos sintéticos.</em></p>`;\nconst subject = `Resumen operativo FCV Citas — ${fecha}${incidencias.length ? ' (con incidencias)' : ''}`;\nreturn [{ json: { to: cfg.labRecipient, subject, message: html, aprobadas: citas.length, pendientesCitas: pendCitas, pendientesReprogramacion: pendRe, incidencias: incidencias.length } }];"
+      },
+      "id": "a94ec55f-82df-44d6-9c2a-f270d0c0b73a",
+      "name": "Agregar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.message }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "77acd6bc-0d96-48bb-9c34-a6782b6c76fc",
+      "name": "Gmail resumen",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        208
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Alejandro - Gmail"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "errorMessage": "Gmail falló tras reintentos al enviar el resumen operativo"
+      },
+      "id": "c70854cf-ee62-4d67-bb0e-4fa06dbd4019",
+      "name": "Gmail falló",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1328,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: { workflow: 'WF-003', enviado: true, aprobadas: r.aprobadas, pendientesCitas: r.pendientesCitas, pendientesReprogramacion: r.pendientesReprogramacion, incidencias: r.incidencias, ejecutadoEn: new Date().toISOString() } }];"
+      },
+      "id": "3a640999-1a72-4518-be66-357af8fa5f9b",
+      "name": "Registrar resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        208
+      ]
+    }
+  ],
+  "connections": {
+    "Cada día 06:00": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Login API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login API": {
+      "main": [
+        [
+          {
+            "node": "Citas aprobadas del día",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Citas aprobadas del día": {
+      "main": [
+        [
+          {
+            "node": "Bandeja ADMIN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bandeja ADMIN": {
+      "main": [
+        [
+          {
+            "node": "Agregar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agregar": {
+      "main": [
+        [
+          {
+            "node": "Gmail resumen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail resumen": {
+      "main": [
+        [
+          {
+            "node": "Registrar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail falló",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true,
+    "timezone": "America/Bogota",
+    "saveManualExecutions": true
+  },
+  "nodeGroups": []
+}

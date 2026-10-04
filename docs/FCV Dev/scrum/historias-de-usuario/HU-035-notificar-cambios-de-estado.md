@@ -2,7 +2,7 @@
 id: HU-035
 tipo: historia-de-usuario
 titulo: "Notificar cambios de estado"
-estado: Pendiente de aprobación
+estado: Implementada
 epica: "[[EP-008-cliente-web-y-automatizaciones-posteriores]]"
 esfuerzo: Alto
 sprint_sugerido: "Incremento 7"
@@ -46,10 +46,11 @@ Automatización posterior mediante webhook + Gmail, sin alterar el núcleo de ci
 ## Evidencia de validación
 | Elemento | Resultado | Evidencia | Observación |
 |---|---|---|---|
-| CA-01 | Pendiente | — | Depende del trainer. |
-| CA-02 | Pendiente | — | — |
-| CA-03 / DoD | Pendiente | — | — |
+| CA-01 | Cumplido | `evidence/S5-S6-n8n-2026-10-04.md` (ejecuciones 368, 371, 372) | Eventos reales desde citas-api: cita especializada rechazada y reprogramación aprobada/rechazada. |
+| CA-02 | Cumplido | `evidence/S5-S6-n8n-2026-10-04.md` | El workflow solo notifica; no cambia estado, slots ni auditoría. |
+| CA-03 / DoD | Cumplido | `automations/n8n/WF-002-status-notifications.json` | JSON saneado. Workflow inactivo. |
 ## Historial de validación
 - 2026-09-17 — HU creada en estado `Pendiente de aprobación`.
+- 2026-10-04 — Implementada. Se añadió el evento `AppointmentRescheduleDecided` en citas-api para notificar reprogramaciones. Workflow dejado inactivo.
 ## Notas y decisiones
 - El formato del evento se aprueba como cambio de contrato cross-repo.
