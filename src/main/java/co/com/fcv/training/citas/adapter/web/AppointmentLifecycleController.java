@@ -145,6 +145,7 @@ class AppointmentLifecycleController {
         if("APPROVED".equals(next)){ jdbc.update("update professional_slots set appointment_id=null where appointment_id=? and start_at=?",appointment,r.get("current_start")); jdbc.update("update appointments set location_id=?,scheduled_start_at=?,scheduled_end_at=? where id=?",r.get("requested_location_id"),r.get("requested_start_at"),r.get("requested_end_at"),appointment); }
         else jdbc.update("update professional_slots set appointment_id=null where appointment_id=? and start_at=?",appointment,r.get("requested_start_at"));
         jdbc.update("update reschedule_requests set status_id=(select id from reschedule_request_statuses where code=?),decision_reason=?,decided_by_user_id=?,decided_at=? where id=?",next,body.reason(),userId(jwt),LocalDateTime.now(clock),id);
+        events.publishRescheduleDecision(appointment,id,next,userId(jwt));
         return ResponseEntity.noContent().build();
     }
 

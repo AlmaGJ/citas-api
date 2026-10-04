@@ -32,7 +32,14 @@ class AppointmentEventPublisher {
     }
     void publish(long appointmentId,String status,String source,long actorId) {
         if(!enabled || !Set.of("APPROVED","REJECTED","CANCELLED").contains(status)) return;
-        Runnable send=()->{try{client.post().uri(url).contentType(MediaType.APPLICATION_JSON).header("Authorization","Bearer "+bearer).body(Map.of("schemaVersion","1","eventId",UUID.randomUUID().toString(),"eventType","AppointmentStatusChanged","appointmentId",appointmentId,"status",status,"source",source,"actorUserId",actorId,"occurredAt",Instant.now().toString())).retrieve().toBodilessEntity();}catch(Exception e){log.warn("No se pudo entregar evento de cita {}: {}",appointmentId,e.getClass().getSimpleName());}};
+        deliver(Map.of("schemaVersion","1","eventId",UUID.randomUUID().toString(),"eventType","AppointmentStatusChanged","appointmentId",appointmentId,"status",status,"source",source,"actorUserId",actorId,"occurredAt",Instant.now().toString()),appointmentId);
+    }
+    void publishRescheduleDecision(long appointmentId,long rescheduleRequestId,String status,long actorId) {
+        if(!enabled || !Set.of("APPROVED","REJECTED").contains(status)) return;
+        deliver(Map.of("schemaVersion","1","eventId",UUID.randomUUID().toString(),"eventType","AppointmentRescheduleDecided","appointmentId",appointmentId,"rescheduleRequestId",rescheduleRequestId,"status",status,"source","ADMIN","actorUserId",actorId,"occurredAt",Instant.now().toString()),appointmentId);
+    }
+    private void deliver(Map<String,Object> body,long appointmentId) {
+        Runnable send=()->{try{client.post().uri(url).contentType(MediaType.APPLICATION_JSON).header("Authorization","Bearer "+bearer).body(body).retrieve().toBodilessEntity();}catch(Exception e){log.warn("No se pudo entregar evento de cita {}: {}",appointmentId,e.getClass().getSimpleName());}};
         if(TransactionSynchronizationManager.isSynchronizationActive()) TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){public void afterCommit(){send.run();}}); else send.run();
     }
 }
